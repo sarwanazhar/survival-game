@@ -207,6 +207,8 @@ func _setup_input_actions() -> void:
 
 func _ready() -> void:
 	_setup_input_actions()
+	floor_max_angle = deg_to_rad(52.0)
+	floor_snap_length = 0.35
 	sfx = SFXManager.new()
 	sfx.name = "SFXManager"
 	add_child(sfx)
@@ -779,6 +781,11 @@ func _unhandled_input(event: InputEvent) -> void:
 # Physics Process & Movement
 # -------------------------------------------------------------
 func _physics_process(delta: float) -> void:
+	var sm := get_parent().get_node_or_null("StoryManager") if get_parent() else null
+	if sm and sm.get("is_in_cutscene"):
+		velocity.x = 0.0; velocity.z = 0.0
+		play_anim("Idle", 0.2)
+		return
 	var cur_y: float = global_position.y if is_inside_tree() else position.y
 	var in_water: bool = is_swimming and (cur_y <= water_surface_y - 0.6)
 	

@@ -1,3 +1,10 @@
 # Godot 4+ specific ignores
 .godot/
 /android/
+
+# Build artifacts & packages (APKs can be generated locally but not tracked by git)
+builds/
+*.apk
+*.idsig
+*.aab
+bin/

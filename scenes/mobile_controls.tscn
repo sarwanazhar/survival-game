@@ -1,47 +1,85 @@
-[gd_scene load_steps=6 format=3]
+[gd_scene load_steps=9 format=3]
 
 [ext_resource type="Script" path="res://scenes/mobile_controls.gd" id="1_script"]
 [ext_resource type="Script" path="res://scenes/virtual_joystick.gd" id="2_joystick"]
 
 [sub_resource type="StyleBoxFlat" id="StyleBox_Attack"]
-bg_color = Color(0.82, 0.32, 0.08, 0.78)
-border_width_left = 3
-border_width_top = 3
-border_width_right = 3
-border_width_bottom = 3
-border_color = Color(1, 0.78, 0.25, 0.95)
-corner_radius_top_left = 45
-corner_radius_top_right = 45
-corner_radius_bottom_right = 45
-corner_radius_bottom_left = 45
+bg_color = Color(0.85, 0.32, 0.08, 0.88)
+border_width_left = 4
+border_width_top = 4
+border_width_right = 4
+border_width_bottom = 4
+border_color = Color(1, 0.8, 0.25, 0.95)
+corner_radius_top_left = 52
+corner_radius_top_right = 52
+corner_radius_bottom_right = 52
+corner_radius_bottom_left = 52
 
 [sub_resource type="StyleBoxFlat" id="StyleBox_Jump"]
-bg_color = Color(0.1, 0.42, 0.82, 0.78)
+bg_color = Color(0.1, 0.45, 0.86, 0.88)
+border_width_left = 4
+border_width_top = 4
+border_width_right = 4
+border_width_bottom = 4
+border_color = Color(0.35, 0.88, 1, 0.95)
+corner_radius_top_left = 48
+corner_radius_top_right = 48
+corner_radius_bottom_right = 48
+corner_radius_bottom_left = 48
+
+[sub_resource type="StyleBoxFlat" id="StyleBox_Sprint"]
+bg_color = Color(0.12, 0.55, 0.32, 0.88)
 border_width_left = 3
 border_width_top = 3
 border_width_right = 3
 border_width_bottom = 3
-border_color = Color(0.35, 0.85, 1, 0.95)
-corner_radius_top_left = 40
-corner_radius_top_right = 40
-corner_radius_bottom_right = 40
-corner_radius_bottom_left = 40
+border_color = Color(0.3, 0.95, 0.55, 0.95)
+corner_radius_top_left = 26
+corner_radius_top_right = 26
+corner_radius_bottom_right = 26
+corner_radius_bottom_left = 26
 
-[sub_resource type="StyleBoxFlat" id="StyleBox_Upgrade"]
-bg_color = Color(0.14, 0.18, 0.25, 0.82)
-border_width_left = 2
-border_width_top = 2
-border_width_right = 2
-border_width_bottom = 2
-border_color = Color(0.4, 0.72, 1, 0.85)
-corner_radius_top_left = 20
-corner_radius_top_right = 20
-corner_radius_bottom_right = 20
-corner_radius_bottom_left = 20
+[sub_resource type="StyleBoxFlat" id="StyleBox_Sprint_Active"]
+bg_color = Color(0.16, 0.78, 0.42, 0.98)
+border_width_left = 4
+border_width_top = 4
+border_width_right = 4
+border_width_bottom = 4
+border_color = Color(1, 0.92, 0.25, 1)
+corner_radius_top_left = 26
+corner_radius_top_right = 26
+corner_radius_bottom_right = 26
+corner_radius_bottom_left = 26
+
+[sub_resource type="StyleBoxFlat" id="StyleBox_Craft"]
+bg_color = Color(0.16, 0.26, 0.4, 0.9)
+border_width_left = 3
+border_width_top = 3
+border_width_right = 3
+border_width_bottom = 3
+border_color = Color(0.35, 0.75, 1, 0.95)
+corner_radius_top_left = 22
+corner_radius_top_right = 22
+corner_radius_bottom_right = 22
+corner_radius_bottom_left = 22
+
+[sub_resource type="StyleBoxFlat" id="StyleBox_Plant"]
+bg_color = Color(0.12, 0.62, 0.28, 0.95)
+border_width_left = 3
+border_width_top = 3
+border_width_right = 3
+border_width_bottom = 3
+border_color = Color(0.4, 0.98, 0.5, 1)
+corner_radius_top_left = 22
+corner_radius_top_right = 22
+corner_radius_bottom_right = 22
+corner_radius_bottom_left = 22
 
 [node name="MobileControls" type="CanvasLayer"]
 layer = 5
 script = ExtResource("1_script")
+style_sprint_normal = SubResource("StyleBox_Sprint")
+style_sprint_active = SubResource("StyleBox_Sprint_Active")
 
 [node name="Control" type="Control" parent="."]
 layout_mode = 3
@@ -55,10 +93,10 @@ mouse_filter = 2
 [node name="TouchCameraArea" type="Control" parent="Control"]
 layout_mode = 1
 anchors_preset = 15
-anchor_left = 0.3
-anchor_top = 0.12
+anchor_left = 0.25
+anchor_top = 0.0
 anchor_right = 1.0
-anchor_bottom = 0.65
+anchor_bottom = 0.8
 grow_horizontal = 2
 grow_vertical = 2
 
@@ -67,9 +105,9 @@ layout_mode = 1
 anchors_preset = 2
 anchor_top = 1.0
 anchor_bottom = 1.0
-offset_left = 40.0
-offset_top = -200.0
-offset_right = 200.0
+offset_left = 30.0
+offset_top = -225.0
+offset_right = 215.0
 offset_bottom = -40.0
 grow_vertical = 0
 mouse_filter = 2
@@ -90,8 +128,10 @@ anchor_left = 1.0
 anchor_top = 1.0
 anchor_right = 1.0
 anchor_bottom = 1.0
-offset_left = -260.0
-offset_top = -240.0
+offset_left = -310.0
+offset_top = -280.0
+offset_right = -10.0
+offset_bottom = -10.0
 grow_horizontal = 0
 grow_vertical = 0
 mouse_filter = 2
@@ -103,19 +143,18 @@ anchor_left = 0.5
 anchor_top = 0.5
 anchor_right = 0.5
 anchor_bottom = 0.5
-offset_left = -105.0
-offset_top = -10.0
-offset_right = -15.0
-offset_bottom = 80.0
+offset_left = -135.0
+offset_top = 10.0
+offset_right = -30.0
+offset_bottom = 115.0
 grow_horizontal = 2
 grow_vertical = 2
-theme_override_font_sizes/font_size = 15
+theme_override_font_sizes/font_size = 18
 theme_override_styles/normal = SubResource("StyleBox_Attack")
 theme_override_styles/hover = SubResource("StyleBox_Attack")
 theme_override_styles/pressed = SubResource("StyleBox_Attack")
 action_mode = 0
-text = "⚔️
-USE"
+text = "USE"
 
 [node name="JumpButton" type="Button" parent="Control/ButtonsContainer"]
 layout_mode = 1
@@ -124,35 +163,76 @@ anchor_left = 0.5
 anchor_top = 0.5
 anchor_right = 0.5
 anchor_bottom = 0.5
-offset_left = 15.0
-offset_top = -5.0
-offset_right = 95.0
-offset_bottom = 75.0
+offset_left = 10.0
+offset_top = 20.0
+offset_right = 105.0
+offset_bottom = 115.0
 grow_horizontal = 2
 grow_vertical = 2
-theme_override_font_sizes/font_size = 14
+theme_override_font_sizes/font_size = 17
 theme_override_styles/normal = SubResource("StyleBox_Jump")
 theme_override_styles/hover = SubResource("StyleBox_Jump")
 theme_override_styles/pressed = SubResource("StyleBox_Jump")
 action_mode = 0
-text = "🦘
-JUMP"
+text = "JUMP"
 
-[node name="UpgradeButton" type="Button" parent="Control/ButtonsContainer"]
+[node name="SprintButton" type="Button" parent="Control/ButtonsContainer"]
 layout_mode = 1
 anchors_preset = 8
 anchor_left = 0.5
 anchor_top = 0.5
 anchor_right = 0.5
 anchor_bottom = 0.5
-offset_left = -60.0
-offset_top = -75.0
-offset_right = 60.0
-offset_bottom = -33.0
+offset_left = 10.0
+offset_top = -65.0
+offset_right = 105.0
+offset_bottom = 10.0
 grow_horizontal = 2
 grow_vertical = 2
-theme_override_font_sizes/font_size = 13
-theme_override_styles/normal = SubResource("StyleBox_Upgrade")
-theme_override_styles/hover = SubResource("StyleBox_Upgrade")
-theme_override_styles/pressed = SubResource("StyleBox_Upgrade")
-text = "★ UPGRADE"
+theme_override_font_sizes/font_size = 17
+theme_override_styles/normal = SubResource("StyleBox_Sprint")
+theme_override_styles/hover = SubResource("StyleBox_Sprint")
+theme_override_styles/pressed = SubResource("StyleBox_Sprint")
+action_mode = 0
+text = "RUN"
+
+[node name="CraftButton" type="Button" parent="Control/ButtonsContainer"]
+layout_mode = 1
+anchors_preset = 8
+anchor_left = 0.5
+anchor_top = 0.5
+anchor_right = 0.5
+anchor_bottom = 0.5
+offset_left = -135.0
+offset_top = -60.0
+offset_right = -30.0
+offset_bottom = 0.0
+grow_horizontal = 2
+grow_vertical = 2
+theme_override_font_sizes/font_size = 16
+theme_override_styles/normal = SubResource("StyleBox_Craft")
+theme_override_styles/hover = SubResource("StyleBox_Craft")
+theme_override_styles/pressed = SubResource("StyleBox_Craft")
+action_mode = 0
+text = "CRAFT"
+
+[node name="PlantButton" type="Button" parent="Control/ButtonsContainer"]
+visible = false
+layout_mode = 1
+anchors_preset = 8
+anchor_left = 0.5
+anchor_top = 0.5
+anchor_right = 0.5
+anchor_bottom = 0.5
+offset_left = 10.0
+offset_top = -135.0
+offset_right = 105.0
+offset_bottom = -75.0
+grow_horizontal = 2
+grow_vertical = 2
+theme_override_font_sizes/font_size = 15
+theme_override_styles/normal = SubResource("StyleBox_Plant")
+theme_override_styles/hover = SubResource("StyleBox_Plant")
+theme_override_styles/pressed = SubResource("StyleBox_Plant")
+action_mode = 0
+text = "🌱 PLANT"

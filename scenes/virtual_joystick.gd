@@ -3,9 +3,9 @@ extends Control
 
 signal joystick_moved(dir: Vector2)
 
-@export var base_radius: float = 65.0
-@export var knob_radius: float = 28.0
-@export var max_distance: float = 55.0
+@export var base_radius: float = 78.0
+@export var knob_radius: float = 34.0
+@export var max_distance: float = 62.0
 
 var touch_id: int = -1
 var is_active: bool = false
@@ -46,6 +46,7 @@ func _gui_input(event: InputEvent) -> void:
 			elif not event.pressed and touch_id == 9999:
 				_reset_knob()
 				accept_event()
+		accept_event()
 	
 	elif event is InputEventMouseMotion and touch_id == 9999:
 		var local_pos = event.position - size * 0.5

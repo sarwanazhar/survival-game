@@ -9,7 +9,47 @@ extends Node3D
 var _time: float = 0.0
 
 func _ready() -> void:
+	_spawn_lighthouse_stones()
 	_setup_prop_collisions()
+
+func _spawn_lighthouse_stones() -> void:
+	var ruins := get_node_or_null("LighthouseRuins")
+	if not ruins:
+		return
+	
+	var stone_scenes := [
+		load("res://assets/kenney_survival-kit/Models/GLB format/resource-stone.glb"),
+		load("res://assets/kenney_survival-kit/Models/GLB format/resource-stone-large.glb"),
+		load("res://assets/kenney_survival-kit/Models/GLB format/rock-a.glb"),
+		load("res://assets/kenney_survival-kit/Models/GLB format/rock-b.glb"),
+		load("res://assets/kenney_survival-kit/Models/GLB format/rock-c.glb")
+	]
+	
+	var positions := [
+		Vector3(18.0, 6.2, -15.0),
+		Vector3(22.0, 6.5, -20.0),
+		Vector3(25.0, 7.0, -12.0),
+		Vector3(28.0, 7.5, -28.0),
+		Vector3(32.0, 7.8, -16.0),
+		Vector3(35.0, 7.2, -26.0),
+		Vector3(38.0, 6.8, -10.0),
+		Vector3(26.0, 6.4, -6.0),
+		Vector3(33.0, 6.5, -2.0),
+		Vector3(20.0, 6.6, -10.0),
+		Vector3(36.0, 7.0, -20.0),
+		Vector3(40.0, 5.8, -16.0)
+	]
+	
+	for i in range(positions.size()):
+		var scene: PackedScene = stone_scenes[i % stone_scenes.size()]
+		if not scene:
+			continue
+		var stone_inst = scene.instantiate()
+		stone_inst.name = "MineableStone_%02d" % i
+		stone_inst.position = positions[i]
+		stone_inst.scale = Vector3(3.2, 3.2, 3.2)
+		stone_inst.rotation.y = randf_range(0, TAU)
+		ruins.add_child(stone_inst)
 
 func _process(delta: float) -> void:
 	_time += delta
@@ -54,15 +94,32 @@ func _create_prop_collision(prop: Node3D) -> void:
 	var col := CollisionShape3D.new()
 	col.name = "CollisionShape3D"
 	
-	if "tree" in file_name or "palm" in file_name:
+	if "tree" in file_name or "palm" in file_name or "tree" in name_lower or "palm" in name_lower:
+		prop.add_to_group("choppable_trees")
+		prop.set_meta("health", 3)
+		prop.set_meta("max_health", 3)
 		var cyl := CylinderShape3D.new()
 		# Optimized trunk cylinder (blocks trunk, leaves canopy free)
-		var trunk_r: float = min(aabb.size.x, aabb.size.z) * 0.11
+		var trunk_r: float = min(aabb.size.x, aabb.size.z) * 0.12
 		var trunk_h: float = aabb.size.y
-		cyl.radius = max(0.08, trunk_r)
+		cyl.radius = max(0.12, trunk_r)
 		cyl.height = trunk_h
 		col.shape = cyl
 		col.position = Vector3(aabb.get_center().x, aabb.position.y + trunk_h * 0.5, aabb.get_center().z)
+	elif "rock" in file_name or "stone" in file_name or "rock" in name_lower or "stone" in name_lower:
+		prop.add_to_group("mineable_stones")
+		prop.set_meta("health", 3)
+		prop.set_meta("max_health", 3)
+		var box := BoxShape3D.new()
+		box.size = aabb.size * 0.95
+		col.shape = box
+		col.position = aabb.get_center()
+	elif "workbench" in file_name or "workbench" in name_lower:
+		prop.add_to_group("workbenches")
+		var box := BoxShape3D.new()
+		box.size = aabb.size
+		col.shape = box
+		col.position = aabb.get_center()
 	elif "barrel" in file_name:
 		var cyl := CylinderShape3D.new()
 		cyl.radius = aabb.size.x * 0.5

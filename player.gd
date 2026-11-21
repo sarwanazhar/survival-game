@@ -2,11 +2,23 @@ extends CharacterBody3D
 
 @export var walk_speed: float = 4.0
 @export var run_speed: float = 7.5
+@export var swim_speed: float = 3.6
 @export var jump_velocity: float = 5.5
 @export var rotation_speed: float = 12.0
 @export var mouse_sensitivity: float = 0.003
 
 var gravity: float = ProjectSettings.get_setting("physics/3d/default_gravity", 14.0)
+
+var is_swimming: bool = false
+var water_surface_y: float = 0.0
+
+var mobile_controls: CanvasLayer = null
+var touch_move_dir: Vector2 = Vector2.ZERO
+var touch_jump_pressed: bool = false
+
+func set_swimming(active: bool, surface_y: float = 0.0) -> void:
+	is_swimming = active
+	water_surface_y = surface_y
 
 @onready var visuals: Node3D = $Visuals
 @onready var camera_pivot: Node3D = $CameraPivot
@@ -136,16 +148,58 @@ func _ready() -> void:
 	
 	anim_player = find_child("AnimationPlayer", true, false)
 	if anim_player:
-		for anim_name in ["Idle", "Walk", "Run"]:
+		for anim_name in ["Idle", "Walk", "Run", "Fall", "Item_Bucket_Carry", "Swim_Idle", "Swim_Forward"]:
 			if anim_player.has_animation(anim_name):
 				anim_player.get_animation(anim_name).loop_mode = Animation.LOOP_LINEAR
 		
-		anim_player.animation_finished.connect(_on_animation_finished)
+		if not anim_player.animation_finished.is_connected(_on_animation_finished):
+			anim_player.animation_finished.connect(_on_animation_finished)
 		anim_player.play("Idle")
 	
 	_cache_tool_meshes()
 	_create_top_ui()
 	_update_active_tool()
+	_setup_mobile_controls()
+	
+	if camera_pivot and visuals:
+		var cam_basis: Basis = camera_pivot.global_transform.basis if is_inside_tree() else camera_pivot.transform.basis
+		var forward := -cam_basis.z
+		forward.y = 0.0
+		if forward.length_squared() > 0.001:
+			var local_fwd := global_transform.basis.inverse() * forward.normalized() if is_inside_tree() else forward.normalized()
+			visuals.rotation.y = atan2(local_fwd.x, local_fwd.z)
+
+func _setup_mobile_controls() -> void:
+	var scene = load("res://scenes/mobile_controls.tscn")
+	if scene:
+		mobile_controls = scene.instantiate()
+		add_child(mobile_controls)
+		
+		mobile_controls.joystick_moved.connect(func(dir: Vector2):
+			touch_move_dir = dir
+		)
+		mobile_controls.camera_dragged.connect(func(relative: Vector2):
+			if camera_pivot:
+				camera_pivot.rotate_y(-relative.x * 2.5)
+				var spring_arm: SpringArm3D = camera_pivot.get_node_or_null("SpringArm3D")
+				if spring_arm:
+					spring_arm.rotate_x(-relative.y * 2.5)
+					spring_arm.rotation.x = clamp(spring_arm.rotation.x, deg_to_rad(-60.0), deg_to_rad(45.0))
+		)
+		mobile_controls.attack_pressed.connect(func():
+			if not is_attacking:
+				start_action()
+		)
+		mobile_controls.jump_pressed.connect(func():
+			touch_jump_pressed = true
+		)
+		mobile_controls.jump_released.connect(func():
+			touch_jump_pressed = false
+		)
+		mobile_controls.upgrade_pressed.connect(func():
+			is_upgraded = !is_upgraded
+			_update_active_tool()
+		)
 
 func _cache_tool_meshes() -> void:
 	var all_tool_names := [
@@ -228,6 +282,14 @@ func _create_top_ui() -> void:
 		slot_style.content_margin_top = 4
 		slot_style.content_margin_bottom = 4
 		slot_panel.add_theme_stylebox_override("panel", slot_style)
+		slot_panel.mouse_filter = Control.MOUSE_FILTER_STOP
+		var tool_idx := i
+		slot_panel.gui_input.connect(func(event: InputEvent):
+			if (event is InputEventMouseButton and event.pressed and event.button_index == MOUSE_BUTTON_LEFT) or (event is InputEventScreenTouch and event.pressed):
+				if current_tool_idx != tool_idx:
+					current_tool_idx = tool_idx
+					_update_active_tool()
+		)
 		
 		var slot_label := Label.new()
 		slot_label.text = t_info.icon
@@ -337,12 +399,26 @@ func _unhandled_input(event: InputEvent) -> void:
 				start_action()
 
 func _physics_process(delta: float) -> void:
-	if not is_on_floor():
-		velocity.y -= gravity * delta
+	var cur_y: float = global_position.y if is_inside_tree() else position.y
+	var in_water: bool = is_swimming and (cur_y <= water_surface_y - 0.6)
 	
-	if not was_on_floor and is_on_floor():
-		if velocity.y <= 0:
-			trigger_land()
+	if in_water:
+		is_landing = false
+		# Gently buoy velocity.y toward (water_surface_y - 0.85 - cur_y) * 5.0
+		var target_vy: float = (water_surface_y - 0.85 - cur_y) * 5.0
+		velocity.y = move_toward(velocity.y, target_vy, 14.0 * delta)
+		
+		# Space to swim up / jump out
+		if Input.is_action_pressed("jump") or Input.is_key_pressed(KEY_SPACE) or touch_jump_pressed:
+			velocity.y = jump_velocity * 0.85
+	else:
+		if not is_on_floor():
+			velocity.y -= gravity * delta
+		
+		if not was_on_floor and is_on_floor():
+			if velocity.y <= 0:
+				trigger_land()
+	
 	was_on_floor = is_on_floor()
 	
 	if is_landing:
@@ -358,8 +434,8 @@ func _physics_process(delta: float) -> void:
 	if Input.is_mouse_button_pressed(MOUSE_BUTTON_LEFT) and not is_attacking and Input.mouse_mode == Input.MOUSE_MODE_CAPTURED:
 		start_action()
 	
-	var jump_pressed := Input.is_action_just_pressed("jump") or Input.is_key_pressed(KEY_SPACE)
-	if jump_pressed and is_on_floor() and not is_attacking:
+	var jump_pressed := Input.is_action_just_pressed("jump") or Input.is_key_pressed(KEY_SPACE) or touch_jump_pressed
+	if jump_pressed and not in_water and is_on_floor() and not is_attacking:
 		velocity.y = jump_velocity
 		is_landing = false
 		play_anim("Jump", 0.1)
@@ -373,12 +449,21 @@ func _physics_process(delta: float) -> void:
 		input_dir.y -= 1.0
 	if Input.is_action_pressed("move_back") or Input.is_key_pressed(KEY_S) or Input.is_key_pressed(KEY_DOWN):
 		input_dir.y += 1.0
-	input_dir = input_dir.normalized()
 	
 	var is_running := Input.is_action_pressed("sprint") or Input.is_key_pressed(KEY_SHIFT)
-	var speed := run_speed if is_running else walk_speed
+	if touch_move_dir.length_squared() > 0.001:
+		input_dir = touch_move_dir
+		if touch_move_dir.length() > 0.7:
+			is_running = true
+	else:
+		input_dir = input_dir.normalized()
+	var speed: float = walk_speed
+	if in_water:
+		speed = swim_speed
+	elif is_running:
+		speed = run_speed
 	
-	var cam_basis := camera_pivot.global_transform.basis
+	var cam_basis: Basis = camera_pivot.global_transform.basis if camera_pivot else global_transform.basis
 	var forward := -cam_basis.z
 	forward.y = 0.0
 	forward = forward.normalized()
@@ -395,11 +480,13 @@ func _physics_process(delta: float) -> void:
 		velocity.x = move_dir.x * speed
 		velocity.z = move_dir.z * speed
 		
-		var target_angle := atan2(move_dir.x, move_dir.z)
+		var local_move_dir := global_transform.basis.inverse() * move_dir
+		var target_angle := atan2(local_move_dir.x, local_move_dir.z)
 		visuals.rotation.y = lerp_angle(visuals.rotation.y, target_angle, rotation_speed * delta)
 	else:
-		velocity.x = move_toward(velocity.x, 0.0, speed * 8.0 * delta)
-		velocity.z = move_toward(velocity.z, 0.0, speed * 8.0 * delta)
+		var decel: float = 4.0 if in_water else 8.0
+		velocity.x = move_toward(velocity.x, 0.0, speed * decel * delta)
+		velocity.z = move_toward(velocity.z, 0.0, speed * decel * delta)
 	
 	move_and_slide()
 	update_animation(is_running)
@@ -409,6 +496,15 @@ func update_animation(is_running: bool) -> void:
 		return
 	
 	var horizontal_speed := Vector2(velocity.x, velocity.z).length()
+	var cur_y: float = global_position.y if is_inside_tree() else position.y
+	var in_water: bool = is_swimming and (cur_y <= water_surface_y - 0.6)
+	
+	if in_water:
+		if horizontal_speed > 0.3:
+			play_anim("Swim_Forward", 0.25)
+		else:
+			play_anim("Swim_Idle", 0.25)
+		return
 	
 	if not is_on_floor():
 		if velocity.y > 0.5:

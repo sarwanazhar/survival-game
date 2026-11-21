@@ -4,8 +4,9 @@ importer="texture"
 type="CompressedTexture2D"
 uid="uid://cifwligmuybgr"
 path.s3tc="res://.godot/imported/castaway_hero_with_tools_KenneyColormap.png-8b25587665369e8488274ae30fddcee7.s3tc.ctex"
+path.etc2="res://.godot/imported/castaway_hero_with_tools_KenneyColormap.png-8b25587665369e8488274ae30fddcee7.etc2.ctex"
 metadata={
-"imported_formats": ["s3tc_bptc"],
+"imported_formats": ["s3tc_bptc", "etc2_astc"],
 "vram_texture": true
 }
 generator_parameters={
@@ -15,7 +16,7 @@ generator_parameters={
 [deps]
 
 source_file="res://assets/models/castaway_hero_with_tools_KenneyColormap.png"
-dest_files=["res://.godot/imported/castaway_hero_with_tools_KenneyColormap.png-8b25587665369e8488274ae30fddcee7.s3tc.ctex"]
+dest_files=["res://.godot/imported/castaway_hero_with_tools_KenneyColormap.png-8b25587665369e8488274ae30fddcee7.s3tc.ctex", "res://.godot/imported/castaway_hero_with_tools_KenneyColormap.png-8b25587665369e8488274ae30fddcee7.etc2.ctex"]
 
 [params]
 

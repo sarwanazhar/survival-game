@@ -7,10 +7,12 @@ extends Node3D
 @onready var campfire_light: OmniLight3D = get_node_or_null("BeachAndCamp/CampfireLight")
 
 var _time: float = 0.0
+var _ocean_audio: AudioStreamPlayer = null
 
 func _ready() -> void:
 	_spawn_lighthouse_stones()
 	_setup_prop_collisions()
+	_setup_ambience_and_atmosphere()
 
 func _spawn_lighthouse_stones() -> void:
 	var ruins := get_node_or_null("LighthouseRuins")
@@ -181,3 +183,77 @@ func _on_ocean_swim_zone_body_entered(body: Node3D) -> void:
 func _on_ocean_swim_zone_body_exited(body: Node3D) -> void:
 	if body.has_method("set_swimming"):
 		body.set_swimming(false, water_level)
+
+func _setup_ambience_and_atmosphere() -> void:
+	# 1. Dynamic Ocean Waves ambience
+	_ocean_audio = SFXManager.create_looping_2d_player("ambience_ocean", -14.0)
+	_ocean_audio.name = "OceanAmbience"
+	add_child(_ocean_audio)
+
+	# 2. Eerie Zelda-horror island night wind ambience
+	var wind_audio := SFXManager.create_looping_2d_player("ambience_night_wind", -18.0)
+	wind_audio.name = "NightWindAmbience"
+	add_child(wind_audio)
+
+	# 3. 3D Spatial Campfire Crackle + warm ember particles
+	var campfire := get_node_or_null("BeachAndCamp/CampfirePit")
+	if campfire:
+		var fire_sfx := SFXManager.create_looping_3d_player("campfire_crackle", -2.0, 22.0)
+		fire_sfx.name = "CampfireCrackleSFX"
+		campfire.add_child(fire_sfx)
+		_add_fire_embers(campfire)
+
+	# 4. Floating glowing fireflies in the Jungle & near Lighthouse (lightweight for mobile)
+	_add_fireflies("Fireflies_Jungle", Vector3(-18.0, 3.6, 4.0), Vector3(24.0, 3.5, 22.0), 28)
+	_add_fireflies("Fireflies_Cliffs", Vector3(28.0, 9.2, -18.0), Vector3(14.0, 3.5, 14.0), 16)
+
+func _add_fire_embers(parent_node: Node3D) -> void:
+	var p := CPUParticles3D.new()
+	p.name = "CampfireEmbers"
+	p.position = Vector3(0, 0.25, 0)
+	p.amount = 16
+	p.lifetime = 1.6
+	p.emission_shape = CPUParticles3D.EMISSION_SHAPE_SPHERE
+	p.emission_sphere_radius = 0.25
+	p.direction = Vector3(0, 1, 0)
+	p.spread = 22.0
+	p.gravity = Vector3(0, 0.35, 0)
+	p.initial_velocity_min = 0.4
+	p.initial_velocity_max = 0.9
+	var m := BoxMesh.new()
+	m.size = Vector3(0.06, 0.06, 0.06)
+	var mat := StandardMaterial3D.new()
+	mat.albedo_color = Color(1.0, 0.65, 0.2)
+	mat.emission_enabled = true
+	mat.emission = Color(1.0, 0.55, 0.15)
+	mat.emission_energy_multiplier = 2.5
+	mat.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
+	m.material = mat
+	p.mesh = m
+	parent_node.add_child(p)
+
+func _add_fireflies(p_name: String, center: Vector3, extents: Vector3, count: int) -> void:
+	var p := CPUParticles3D.new()
+	p.name = p_name
+	p.position = center
+	p.amount = count
+	p.lifetime = 5.0
+	p.preprocess = 2.5
+	p.emission_shape = CPUParticles3D.EMISSION_SHAPE_BOX
+	p.emission_box_extents = extents
+	p.gravity = Vector3(0, 0.02, 0)
+	p.direction = Vector3(0, 1, 0)
+	p.spread = 180.0
+	p.initial_velocity_min = 0.12
+	p.initial_velocity_max = 0.35
+	var m := BoxMesh.new()
+	m.size = Vector3(0.11, 0.11, 0.11)
+	var mat := StandardMaterial3D.new()
+	mat.albedo_color = Color(0.82, 1.0, 0.45)
+	mat.emission_enabled = true
+	mat.emission = Color(0.78, 1.0, 0.38)
+	mat.emission_energy_multiplier = 2.2
+	mat.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
+	m.material = mat
+	p.mesh = m
+	add_child(p)

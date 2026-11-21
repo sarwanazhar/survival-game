@@ -1,33 +1,18 @@
-# Survival Island Pack — Godot 4.6 / Antigravity Setup Guide
+# Survival Island — Mobile + Full SFX + Upgraded Map Pack
 
-## 1. Extract into Project Root (`hotel/`)
-Copy/merge the two folders from this zip directly into your `hotel/` Godot project:
-- `assets/models/castaway_hero_with_tools.glb` *(replaces existing model — adds `Swim_Idle` & `Swim_Forward`, keeps all 13 tool nodes & 15 previous animations intact!)*
-- `assets/models/island_terrain.glb` *(sculpted 160m × 130m island with `-col` auto-collision)*
-- `assets/models/rowboat.glb` *(castaway wooden boat)*
-- `scenes/island_map.tscn` *(complete island scene using your existing Kenney Nature Kit, Survival Kit, Lighthouse, and `player.tscn`)*
-- `scenes/island_setup.gd` *(rotates Lighthouse beacon, flickers campfire, triggers swim zone)*
-- `scenes/ocean_water.gdshader` *(GL Compatibility ocean water shader)*
+## What's Upgraded
+1. **31 Mobile-Friendly SFX & Ambient Loops (`assets/audio/sfx/*.wav`)** + **`scripts/sfx_manager.gd`**:
+   - Surface-aware footsteps (`sand`, `grass`, `rock`, `run`), `jump`, looping `fall_wind`, `land_soft` / `land_heavy`, `water_splash_in` / `out`, `swim_stroke` / `swim_tread`
+   - Every tool & combat sound: `fist_whoosh`, `axe_swing`, `axe_chop_hit`, `tree_fall`, `pickaxe_mine_hit`, `stone_break`, `shovel_dig`, `hammer_strike`, `hoe_till`, `bottle_drink`, `bucket_slosh`
+   - UI & progression: `ui_click`, `craft_success`, `error_buzz`, `sapling_plant`, `tree_grow_pop`
+   - Ambient & 3D spatial loops: `ambience_ocean`, `ambience_night_wind`, `campfire_crackle`
+2. **Updated `player.gd`**:
+   - All existing inventory, crafting, hotbar, mobile controls, sapling planting, and stone respawn preserved.
+   - Full SFX + mobile haptic vibration (`Input.vibrate_handheld`) wired into every movement, swim, tool, harvest, and UI event.
+3. **Richer Island Map (`assets/models/island_terrain.glb`, `scenes/island_map.tscn`, `scenes/island_setup.gd`)**:
+   - Higher-detail 156×132 fractal terrain, ~75 props (dense jungle, oaks, palms, stream bridge, fences, signpost, campfire embers, floating fireflies, rocky cliffs, lighthouse ruins).
+4. **Smoother Character (`assets/models/castaway_hero_with_tools.glb`)**:
+   - 3x denser cosine-eased animation keyframes across all 17 clips for fluid, less robotic movement.
 
-## 2. Open & Run in Godot 4.6
-1. Open `res://scenes/island_map.tscn` (or set it as `run/main_scene` in `project.godot`).
-2. In Godot's **Advanced Import Settings** for `castaway_hero_with_tools.glb`, set Loop Mode = **Linear** on `Idle`, `Walk`, `Run`, `Fall`, `Item_Bucket_Carry`, `Swim_Idle`, and `Swim_Forward`.
-
-## 3. Wire Swimming into `player.gd` (for Antigravity)
-Add these fields and method to `res://player.gd` so `OceanSwimZone` automatically toggles swimming:
-
-```gdscript
-@export var swim_speed: float = 3.6
-var is_swimming: bool = false
-var water_surface_y: float = 0.0
-
-func set_swimming(active: bool, surface_y: float = 0.0) -> void:
-    is_swimming = active
-    water_surface_y = surface_y
-```
-
-Inside `_physics_process(delta)`:
-- When `is_swimming` is `true` and `global_position.y <= water_surface_y - 0.6`:
-  - Gently buoy `velocity.y` toward `(water_surface_y - 0.85 - global_position.y) * 5.0` (and allow Space to swim/jump out near shore).
-  - Move horizontally at `swim_speed`.
-  - Play `"Swim_Forward"` when moving, or `"Swim_Idle"` when stationary.
+## Setup Steps
+Extract/merge this zip into the root of your `survival-game` repo, open in Godot 4.6, let Godot re-import `assets/audio/sfx/`, `assets/models/castaway_hero_with_tools.glb`, and `assets/models/island_terrain.glb`, and run `res://scenes/island_map.tscn`.

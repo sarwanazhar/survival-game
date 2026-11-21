@@ -8,3 +8,5 @@ builds/
 *.idsig
 *.aab
 bin/
+*.zip
+survival_game_mobile_sfx_upgrade/

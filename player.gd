@@ -11,6 +11,11 @@ var gravity: float = ProjectSettings.get_setting("physics/3d/default_gravity", 1
 
 var is_swimming: bool = false
 var water_surface_y: float = 0.0
+var _was_in_water: bool = false
+var _step_timer: float = 0.0
+var _swim_sfx_timer: float = 0.0
+var _peak_fall_speed: float = 0.0
+var sfx: SFXManager = null
 
 var is_mobile: bool = false
 var mobile_controls: CanvasLayer = null
@@ -202,6 +207,9 @@ func _setup_input_actions() -> void:
 
 func _ready() -> void:
 	_setup_input_actions()
+	sfx = SFXManager.new()
+	sfx.name = "SFXManager"
+	add_child(sfx)
 	is_mobile = OS.has_feature("mobile") or OS.has_feature("android") or OS.has_feature("ios")
 	if not is_mobile:
 		Input.mouse_mode = Input.MOUSE_MODE_CAPTURED
@@ -264,6 +272,7 @@ func _setup_mobile_controls() -> void:
 				velocity.y = jump_velocity
 				is_landing = false
 				play_anim("Jump", 0.1)
+				if sfx: sfx.play("jump", -5.0, 0.94, 1.08)
 		)
 		mobile_controls.jump_released.connect(func():
 			touch_jump_pressed = false
@@ -553,11 +562,13 @@ func _show_floating_text(msg: String, color: Color = Color(1, 1, 1), duration: f
 func open_crafting() -> void:
 	if ui_crafting_modal:
 		ui_crafting_modal.visible = true
+		if sfx: sfx.play("ui_click", -6.0, 0.95, 1.05)
 		_refresh_crafting_ui()
 
 func close_crafting() -> void:
 	if ui_crafting_modal:
 		ui_crafting_modal.visible = false
+		if sfx: sfx.play("ui_click", -8.0, 0.85, 0.95)
 
 func _refresh_crafting_ui() -> void:
 	if not ui_crafting_recipe_box:
@@ -660,6 +671,8 @@ func craft_item(recipe: Dictionary) -> void:
 	
 	_update_resource_hud()
 	_refresh_crafting_ui()
+	if sfx: sfx.play("craft_success", -3.0, 0.96, 1.05)
+	if is_mobile: Input.vibrate_handheld(45)
 	_show_floating_text("✨ Crafted: %s!" % recipe.name, Color(1.0, 0.88, 0.3), 2.5)
 	
 	if recipe.id == "paddle":
@@ -688,6 +701,7 @@ func _update_active_tool() -> void:
 		tool_meshes[cur.mesh].visible = true
 	
 	# Update active banner label
+	if sfx and is_inside_tree(): sfx.play("ui_click", -9.0, 0.92, 1.12)
 	if ui_active_label:
 		ui_active_label.text = "[ %d ] %s" % [cur.slot, cur.name.to_upper()]
 	
@@ -806,6 +820,7 @@ func _physics_process(delta: float) -> void:
 		velocity.y = jump_velocity
 		is_landing = false
 		play_anim("Jump", 0.1)
+		if sfx: sfx.play("jump", -5.0, 0.94, 1.08)
 	
 	var input_dir := Vector2.ZERO
 	if Input.is_action_pressed("move_left") or Input.is_key_pressed(KEY_A) or Input.is_key_pressed(KEY_LEFT):
@@ -854,7 +869,24 @@ func _physics_process(delta: float) -> void:
 		velocity.x = move_toward(velocity.x, 0.0, speed * decel * delta)
 		velocity.z = move_toward(velocity.z, 0.0, speed * decel * delta)
 	
+	if not is_on_floor() and not in_water and velocity.y < 0.0:
+		_peak_fall_speed = maxf(_peak_fall_speed, -velocity.y)
+	else:
+		if is_on_floor() or in_water:
+			_peak_fall_speed = 0.0
+	if sfx:
+		sfx.update_fall_wind(0.0 if (is_on_floor() or in_water) else maxf(0.0, -velocity.y), delta)
+
+	# Water entry / exit splash SFX
+	if in_water and not _was_in_water:
+		if sfx: sfx.play("water_splash_in", -3.0, 0.9, 1.1)
+		if is_mobile: Input.vibrate_handheld(30)
+	elif not in_water and _was_in_water:
+		if sfx: sfx.play("water_splash_out", -5.0, 0.92, 1.08)
+	_was_in_water = in_water
+
 	move_and_slide()
+	_update_locomotion_sfx(delta, is_running, in_water)
 	update_animation(is_running)
 
 func update_animation(is_running: bool) -> void:
@@ -894,6 +926,12 @@ func play_anim(anim_name: String, blend: float = 0.2) -> void:
 			anim_player.play(anim_name, blend)
 
 func trigger_land() -> void:
+	if sfx:
+		if _peak_fall_speed > 9.0:
+			sfx.play("land_heavy", -2.5, 0.9, 1.05)
+			if is_mobile: Input.vibrate_handheld(55)
+		else:
+			sfx.play("land_soft", -5.5, 0.92, 1.1)
 	if anim_player and anim_player.has_animation("Land") and not is_attacking:
 		is_landing = true
 		land_timer = 0.3
@@ -917,10 +955,11 @@ func start_action() -> void:
 		return
 	is_attacking = true
 	is_landing = false
+	var cur_tool_name: String = TOOLS[current_tool_idx].name
 	var anim_to_play: String = TOOLS[current_tool_idx].anim
 	if anim_player.has_animation(anim_to_play):
 		anim_player.play(anim_to_play, 0.1)
-	
+	_play_tool_use_sfx(cur_tool_name)
 	_perform_harvest_hit()
 
 func _perform_harvest_hit() -> void:
@@ -1006,12 +1045,15 @@ func _perform_harvest_hit() -> void:
 	
 	if is_tree:
 		if tool_name != "Axe":
+			if sfx: sfx.play("error_buzz", -6.0, 0.95, 1.05)
 			_show_floating_text("⚠️ Use Axe to chop trees!", Color(1.0, 0.45, 0.4), 2.0)
 			return
 		
 		var dmg: float = 1.0
 		var hp: float = target_prop.get_meta("health", 3.0) - dmg
 		target_prop.set_meta("health", hp)
+		if sfx: sfx.play("axe_chop_hit", -2.0, 0.88, 1.12)
+		if is_mobile: Input.vibrate_handheld(35)
 		_spawn_felled_effect(target_prop.global_position + Vector3(0, 1.2, 0), Color(0.45, 0.3, 0.15))
 		
 		if hp > 0.0:
@@ -1023,6 +1065,8 @@ func _perform_harvest_hit() -> void:
 			inventory["wood"] += wood_gain
 			inventory["sapling"] += sapling_gain
 			_update_resource_hud()
+			if sfx: sfx.play("tree_fall", -1.5, 0.92, 1.06)
+			if is_mobile: Input.vibrate_handheld(75)
 			_show_floating_text("🪓 Tree Chopped! +%d Wood, +%d Sapling" % [wood_gain, sapling_gain], Color(0.35, 1.0, 0.45), 2.2)
 			_spawn_felled_effect(target_prop.global_position + Vector3(0, 1.8, 0), Color(0.25, 0.75, 0.3), 32)
 			
@@ -1032,12 +1076,15 @@ func _perform_harvest_hit() -> void:
 	
 	elif is_stone:
 		if tool_name != "Pickaxe":
+			if sfx: sfx.play("error_buzz", -6.0, 0.95, 1.05)
 			_show_floating_text("⚠️ Use Pickaxe to mine stone!", Color(1.0, 0.45, 0.4), 2.0)
 			return
 		
 		var dmg: float = 1.0
 		var hp: float = target_prop.get_meta("health", 3.0) - dmg
 		target_prop.set_meta("health", hp)
+		if sfx: sfx.play("pickaxe_mine_hit", -2.5, 0.90, 1.14)
+		if is_mobile: Input.vibrate_handheld(40)
 		_spawn_felled_effect(target_prop.global_position + Vector3(0, 0.8, 0), Color(0.65, 0.65, 0.7))
 		
 		if hp > 0.0:
@@ -1047,6 +1094,8 @@ func _perform_harvest_hit() -> void:
 			var stone_gain = randi_range(3, 5)
 			inventory["stone"] += stone_gain
 			_update_resource_hud()
+			if sfx: sfx.play("stone_break", -1.5, 0.90, 1.08)
+			if is_mobile: Input.vibrate_handheld(75)
 			_show_floating_text("🪨 Stone Mined! +%d Stone" % stone_gain, Color(0.65, 0.85, 1.0), 2.2)
 			_spawn_felled_effect(target_prop.global_position + Vector3(0, 1.0, 0), Color(0.7, 0.7, 0.75), 32)
 			_respawn_stone_after_delay(target_prop, 10.0)
@@ -1152,6 +1201,7 @@ func plant_sapling() -> void:
 	else:
 		target_pos.y = global_position.y
 	
+	if sfx: sfx.play("sapling_plant", -3.0, 0.92, 1.08)
 	_show_floating_text("🌱 Sapling planted! Growing in 5 seconds...", Color(0.4, 1.0, 0.5), 2.5)
 	
 	var tree_scene = load("res://assets/kenney_survival-kit/Models/GLB format/tree.glb")
@@ -1210,4 +1260,63 @@ func plant_sapling() -> void:
 	sb.add_child(col)
 	new_tree.add_child(sb)
 	
+	if sfx: sfx.play("tree_grow_pop", -3.0, 0.95, 1.08)
 	_show_floating_text("🌳 Tree is now fully grown & ready to harvest!", Color(0.3, 1.0, 0.4), 2.5)
+
+# -------------------------------------------------------------
+# Surface-Aware Footsteps, Swim SFX & Tool Swing SFX
+# -------------------------------------------------------------
+func _get_ground_surface_sfx(is_running: bool) -> String:
+	if is_running:
+		return "footstep_run"
+	var pos := global_position
+	if pos.y > 4.6 and pos.x > 8.0 and pos.z < 5.0:
+		return "footstep_rock"
+	elif pos.y < 1.85:
+		return "footstep_sand"
+	return "footstep_grass"
+
+func _update_locomotion_sfx(delta: float, is_running: bool, in_water: bool) -> void:
+	if not sfx:
+		return
+	var h_speed := Vector2(velocity.x, velocity.z).length()
+	if in_water:
+		_swim_sfx_timer -= delta
+		if _swim_sfx_timer <= 0.0:
+			if h_speed > 0.35:
+				sfx.play("swim_stroke", -6.0, 0.90, 1.12)
+				_swim_sfx_timer = 0.62
+			else:
+				sfx.play("swim_tread", -11.0, 0.88, 1.08)
+				_swim_sfx_timer = 1.05
+		return
+
+	if is_on_floor() and h_speed > 0.65:
+		_step_timer -= delta
+		if _step_timer <= 0.0:
+			var step_sfx := _get_ground_surface_sfx(is_running)
+			sfx.play(step_sfx, -7.5 if not is_running else -5.5, 0.88, 1.14)
+			_step_timer = 0.29 if is_running else 0.46
+	else:
+		_step_timer = minf(_step_timer, 0.08)
+
+func _play_tool_use_sfx(tool_name: String) -> void:
+	if not sfx:
+		return
+	match tool_name:
+		"Fists":
+			sfx.play("fist_whoosh", -5.0, 0.92, 1.15)
+		"Axe":
+			sfx.play("axe_swing", -5.0, 0.90, 1.10)
+		"Pickaxe":
+			sfx.play("axe_swing", -5.5, 0.82, 0.96)
+		"Shovel":
+			sfx.play("shovel_dig", -4.0, 0.92, 1.08)
+		"Hammer":
+			sfx.play("hammer_strike", -4.0, 0.92, 1.10)
+		"Hoe":
+			sfx.play("hoe_till", -4.5, 0.92, 1.10)
+		"Bottle":
+			sfx.play("bottle_drink", -3.0, 0.96, 1.05)
+		"Bucket":
+			sfx.play("bucket_slosh", -4.5, 0.92, 1.08)

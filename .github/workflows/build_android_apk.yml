@@ -45,7 +45,10 @@ jobs:
       - name: "Generate Debug Keystore & Configure Godot Android SDK"
         run: |
           mkdir -p "$HOME/.local/share/godot/keystores" "$HOME/.config/godot" builds
-          keytool -keyalg RSA -genkeypair -alias androiddebugkey -keypass android             -keystore "$HOME/.local/share/godot/keystores/debug.keystore"             -storepass android -dname "CN=Android Debug,O=Android,C=US"             -validity 9999 -deststoretype pkcs12 -noprompt
+          keytool -keyalg RSA -genkeypair -alias androiddebugkey -keypass android \
+            -keystore "$HOME/.local/share/godot/keystores/debug.keystore" \
+            -storepass android -dname "CN=Android Debug,O=Android,C=US" \
+            -validity 9999 -deststoretype pkcs12 -noprompt
 
           cat <<EOF > "$HOME/.config/godot/editor_settings-4.6.tres"
           [gd_resource type="EditorSettings" format=3]
@@ -53,14 +56,18 @@ jobs:
           [resource]
           export/android/android_sdk_path = "${ANDROID_HOME}"
           export/android/debug_keystore = "$HOME/.local/share/godot/keystores/debug.keystore"
-          export/android/debug_keystore_user = "androiddebugkey"
           export/android/debug_keystore_pass = "android"
           EOF
+          cp "$HOME/.config/godot/editor_settings-4.6.tres" "$HOME/.config/godot/editor_settings-4.tres"
+
+          sed -i "s|keystore/debug=.*|keystore/debug=\"$HOME/.local/share/godot/keystores/debug.keystore\"|g" export_presets.cfg
+          sed -i "s|keystore/debug_user=.*|keystore/debug_user=\"androiddebugkey\"|g" export_presets.cfg
+          sed -i "s|keystore/debug_password=.*|keystore/debug_password=\"android\"|g" export_presets.cfg
 
       - name: "Import Project Assets & Export Android Debug APK"
         run: |
-          godot --headless --import --quit || true
-          godot --headless --export-debug "Android" builds/island_survival.apk
+          godot --headless --editor --quit || true
+          godot --headless --verbose --export-debug "Android" builds/island_survival.apk
           ls -lh builds/island_survival.apk
 
       - name: "Upload APK Artifact"

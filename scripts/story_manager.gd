@@ -9,6 +9,9 @@ var escaped: bool = false
 var _cutscene: CutsceneManager = null
 var _sfx: SFXManager = null
 var _hud: CanvasLayer = null
+var _interact_hud: CanvasLayer = null
+var _lore_hud: CanvasLayer = null
+var _obj_panel: PanelContainer = null
 var _obj_label: Label = null
 var _interact_btn: Button = null
 var _lore_panel: PanelContainer = null
@@ -52,31 +55,41 @@ func _ready() -> void:
 	play_intro_cutscene()
 
 func _build_story_hud() -> void:
+	# 1. Background Objective Tracker HUD (Layer 3 - strictly behind all other UI and controls)
 	_hud = CanvasLayer.new()
-	_hud.name = "StoryHUD"
-	_hud.layer = 12
+	_hud.name = "StoryObjectiveHUD"
+	_hud.layer = 3
 	add_child(_hud)
 
-	# Compact Top-Right Objective Tracker (Mobile-friendly)
-	var panel := PanelContainer.new()
-	panel.anchor_left = 0.66; panel.anchor_right = 0.985
-	panel.anchor_top = 0.02; panel.anchor_bottom = 0.14
+	# Compact Top-Right Objective Tracker (Mobile-friendly, non-blocking)
+	_obj_panel = PanelContainer.new()
+	_obj_panel.name = "ObjectivePanel"
+	_obj_panel.anchor_left = 0.66; _obj_panel.anchor_right = 0.985
+	_obj_panel.anchor_top = 0.02; _obj_panel.anchor_bottom = 0.14
+	_obj_panel.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	_obj_panel.z_index = -1
 	var st := StyleBoxFlat.new()
 	st.bg_color = Color(0.06, 0.09, 0.14, 0.85)
 	st.border_color = Color(0.92, 0.76, 0.34, 0.85)
 	st.set_border_width_all(2)
 	st.set_corner_radius_all(8)
 	st.set_content_margin_all(10)
-	panel.add_theme_stylebox_override("panel", st)
-	_hud.add_child(panel)
+	_obj_panel.add_theme_stylebox_override("panel", st)
+	_hud.add_child(_obj_panel)
 
 	_obj_label = Label.new()
 	_obj_label.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+	_obj_label.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	_obj_label.add_theme_font_size_override("font_size", 13)
 	_obj_label.add_theme_color_override("font_color", Color(1.0, 0.93, 0.72))
-	panel.add_child(_obj_label)
+	_obj_panel.add_child(_obj_label)
 
-	# Floating Interact Button (works for both mobile tap & desktop click / F key)
+	# 2. Floating Interact Button (Layer 8 - above camera touch area, below modals)
+	_interact_hud = CanvasLayer.new()
+	_interact_hud.name = "StoryInteractHUD"
+	_interact_hud.layer = 8
+	add_child(_interact_hud)
+
 	_interact_btn = Button.new()
 	_interact_btn.text = "✨ INSPECT RELIC [F]"
 	_interact_btn.anchor_left = 0.36; _interact_btn.anchor_right = 0.64
@@ -84,9 +97,14 @@ func _build_story_hud() -> void:
 	_interact_btn.visible = false
 	_interact_btn.add_theme_font_size_override("font_size", 16)
 	_interact_btn.pressed.connect(_on_interact_pressed)
-	_hud.add_child(_interact_btn)
+	_interact_hud.add_child(_interact_btn)
 
-	# Lore Note Popup
+	# 3. Lore Note Popup Dialog (Layer 22 - high popup layer so it displays on top of everything)
+	_lore_hud = CanvasLayer.new()
+	_lore_hud.name = "StoryLoreHUD"
+	_lore_hud.layer = 22
+	add_child(_lore_hud)
+
 	_lore_panel = PanelContainer.new()
 	_lore_panel.anchor_left = 0.18; _lore_panel.anchor_right = 0.82
 	_lore_panel.anchor_top = 0.22; _lore_panel.anchor_bottom = 0.74
@@ -98,7 +116,7 @@ func _build_story_hud() -> void:
 	lst.set_corner_radius_all(12)
 	lst.set_content_margin_all(18)
 	_lore_panel.add_theme_stylebox_override("panel", lst)
-	_hud.add_child(_lore_panel)
+	_lore_hud.add_child(_lore_panel)
 
 	var vb := VBoxContainer.new()
 	vb.add_theme_constant_override("separation", 12)
@@ -123,6 +141,12 @@ func _build_story_hud() -> void:
 	vb.add_child(ok_btn)
 
 func _set_hud_visible(vis: bool) -> void:
+	if _hud:
+		_hud.visible = vis
+	if _interact_hud:
+		_interact_hud.visible = vis
+
+func set_objective_visible(vis: bool) -> void:
 	if _hud:
 		_hud.visible = vis
 

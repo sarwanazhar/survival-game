@@ -170,6 +170,8 @@ var land_timer: float = 0.0
 
 # UI References
 var ui_hud_layer: CanvasLayer = null
+var ui_modal_layer: CanvasLayer = null
+var ui_modal_backdrop: ColorRect = null
 var ui_active_label: Label = null
 var ui_slot_panels: Array[PanelContainer] = []
 var ui_wood_label: Label = null
@@ -181,6 +183,16 @@ var ui_crafting_modal: PanelContainer = null
 var ui_crafting_recipe_box: VBoxContainer = null
 var ui_notification_label: Label = null
 var ui_notification_tween: Tween = null
+
+# Back Button & Exit Confirmation System
+var _exit_warning_layer: CanvasLayer = null
+var _exit_warning_panel: PanelContainer = null
+var _exit_warning_backdrop: ColorRect = null
+var _exit_timer_label: Label = null
+var _exit_warning_timer: float = 0.0
+var _exit_warning_active: bool = false
+var _last_back_time_msec: int = 0
+const EXIT_WARNING_TIMEOUT: float = 3.5
 
 func _setup_input_actions() -> void:
 	var key_mappings := {
@@ -206,6 +218,7 @@ func _setup_input_actions() -> void:
 		InputMap.action_add_event("attack", mb)
 
 func _ready() -> void:
+	get_tree().set_auto_accept_quit(false)
 	_setup_input_actions()
 	floor_max_angle = deg_to_rad(52.0)
 	floor_snap_length = 0.35
@@ -324,7 +337,13 @@ func _create_survival_ui() -> void:
 	
 	_create_resource_tracker(ui_hud_layer)
 	_create_minecraft_hotbar(ui_hud_layer)
-	_create_crafting_modal(ui_hud_layer)
+	
+	ui_modal_layer = CanvasLayer.new()
+	ui_modal_layer.name = "SurvivalModalLayer"
+	ui_modal_layer.layer = 20 # High modal layer above all HUDs & objective tracker!
+	add_child(ui_modal_layer)
+	_create_crafting_modal(ui_modal_layer)
+	
 	_create_notification_label(ui_hud_layer)
 
 func _create_resource_tracker(canvas: CanvasLayer) -> void:
@@ -476,6 +495,19 @@ func _create_minecraft_hotbar(canvas: CanvasLayer) -> void:
 		ui_slot_panels.append(slot)
 
 func _create_crafting_modal(canvas: CanvasLayer) -> void:
+	# Full-screen touchable backdrop (tap outside to close crafting)
+	ui_modal_backdrop = ColorRect.new()
+	ui_modal_backdrop.set_anchors_preset(Control.PRESET_FULL_RECT)
+	ui_modal_backdrop.color = Color(0.02, 0.04, 0.08, 0.65)
+	ui_modal_backdrop.visible = false
+	ui_modal_backdrop.gui_input.connect(func(event: InputEvent):
+		if event is InputEventMouseButton and event.pressed:
+			close_crafting()
+		elif event is InputEventScreenTouch and event.pressed:
+			close_crafting()
+	)
+	canvas.add_child(ui_modal_backdrop)
+
 	ui_crafting_modal = PanelContainer.new()
 	ui_crafting_modal.anchor_left = 0.12
 	ui_crafting_modal.anchor_right = 0.88
@@ -564,13 +596,23 @@ func _show_floating_text(msg: String, color: Color = Color(1, 1, 1), duration: f
 func open_crafting() -> void:
 	if ui_crafting_modal:
 		ui_crafting_modal.visible = true
+		if ui_modal_backdrop:
+			ui_modal_backdrop.visible = true
 		if sfx: sfx.play("ui_click", -6.0, 0.95, 1.05)
 		_refresh_crafting_ui()
+		var sm = get_parent().get_node_or_null("StoryManager") if get_parent() else null
+		if sm and sm.has_method("set_objective_visible"):
+			sm.set_objective_visible(false)
 
 func close_crafting() -> void:
 	if ui_crafting_modal:
 		ui_crafting_modal.visible = false
+		if ui_modal_backdrop:
+			ui_modal_backdrop.visible = false
 		if sfx: sfx.play("ui_click", -8.0, 0.85, 0.95)
+		var sm = get_parent().get_node_or_null("StoryManager") if get_parent() else null
+		if sm and sm.has_method("set_objective_visible"):
+			sm.set_objective_visible(true)
 
 func _refresh_crafting_ui() -> void:
 	if not ui_crafting_recipe_box:
@@ -728,9 +770,39 @@ func _update_active_tool() -> void:
 		p.add_theme_stylebox_override("panel", style)
 
 # -------------------------------------------------------------
-# Input Handling
+# Input Handling & Back/Exit Warning System
 # -------------------------------------------------------------
+func _notification(what: int) -> void:
+	if what == NOTIFICATION_WM_GO_BACK_REQUEST or what == NOTIFICATION_WM_CLOSE_REQUEST:
+		_handle_back_request()
+
 func _unhandled_input(event: InputEvent) -> void:
+	# Android hardware Back key or TV remote Back
+	if event is InputEventKey and event.pressed and not event.echo:
+		if event.keycode == KEY_BACK:
+			_handle_back_request()
+			get_viewport().set_input_as_handled()
+			return
+
+	# Escape key on desktop/keyboard
+	if event is InputEventKey and event.pressed and not event.echo and event.keycode == KEY_ESCAPE:
+		if ui_crafting_modal and ui_crafting_modal.visible:
+			close_crafting()
+			get_viewport().set_input_as_handled()
+			return
+		elif _exit_warning_active:
+			get_tree().quit()
+			get_viewport().set_input_as_handled()
+			return
+		elif Input.mouse_mode == Input.MOUSE_MODE_CAPTURED:
+			Input.mouse_mode = Input.MOUSE_MODE_VISIBLE
+			get_viewport().set_input_as_handled()
+			return
+		else:
+			_handle_back_request()
+			get_viewport().set_input_as_handled()
+			return
+
 	if is_mobile:
 		return
 
@@ -740,13 +812,6 @@ func _unhandled_input(event: InputEvent) -> void:
 		if spring_arm:
 			spring_arm.rotate_x(-event.relative.y * mouse_sensitivity)
 			spring_arm.rotation.x = clamp(spring_arm.rotation.x, deg_to_rad(-60.0), deg_to_rad(45.0))
-	
-	# Toggle mouse capture with Escape
-	if event is InputEventKey and event.pressed and not event.echo and event.keycode == KEY_ESCAPE:
-		if Input.mouse_mode == Input.MOUSE_MODE_CAPTURED:
-			Input.mouse_mode = Input.MOUSE_MODE_VISIBLE
-		else:
-			Input.mouse_mode = Input.MOUSE_MODE_CAPTURED
 	
 	# Number keys 1-8 to switch tools
 	if event is InputEventKey and event.pressed and not event.echo:
@@ -776,6 +841,169 @@ func _unhandled_input(event: InputEvent) -> void:
 				Input.mouse_mode = Input.MOUSE_MODE_CAPTURED
 			elif not is_attacking:
 				start_action()
+
+func _handle_back_request() -> void:
+	var now_msec := Time.get_ticks_msec()
+	if now_msec - _last_back_time_msec < 250:
+		return
+	_last_back_time_msec = now_msec
+	
+	# Priority 1: Cutscene active -> skip cutscene
+	var sm = get_parent().get_node_or_null("StoryManager") if get_parent() else null
+	if sm and sm.get("is_in_cutscene"):
+		if sm._cutscene and sm._cutscene._skip_btn and sm._cutscene._skip_btn.visible:
+			sm._cutscene._skip_btn.emit_signal("pressed")
+			return
+	
+	# Priority 2: Crafting modal open -> close crafting
+	if ui_crafting_modal and ui_crafting_modal.visible:
+		close_crafting()
+		return
+	
+	# Priority 3: Shrine Lore note popup open -> close lore note
+	if sm and sm._lore_panel and sm._lore_panel.visible:
+		sm._lore_panel.visible = false
+		return
+	
+	# Priority 4: Exit warning dialog is already active -> quit game on 2nd back!
+	if _exit_warning_active:
+		if sfx: sfx.play("ui_click", -4.0, 0.8, 0.9)
+		get_tree().quit()
+		return
+	
+	# Priority 5: Show exit warning dialog with 3.5s countdown & action buttons
+	_show_exit_warning()
+
+func _show_exit_warning() -> void:
+	_exit_warning_active = true
+	_exit_warning_timer = EXIT_WARNING_TIMEOUT
+	
+	Input.vibrate_handheld(60)
+	if sfx:
+		sfx.play("ui_click", -4.0, 1.15, 1.25)
+	
+	if not _exit_warning_layer:
+		_build_exit_warning_ui()
+	
+	_exit_warning_layer.visible = true
+	_update_exit_timer_display()
+
+func _build_exit_warning_ui() -> void:
+	_exit_warning_layer = CanvasLayer.new()
+	_exit_warning_layer.name = "ExitWarningLayer"
+	_exit_warning_layer.layer = 50
+	add_child(_exit_warning_layer)
+	
+	_exit_warning_backdrop = ColorRect.new()
+	_exit_warning_backdrop.set_anchors_preset(Control.PRESET_FULL_RECT)
+	_exit_warning_backdrop.color = Color(0.02, 0.04, 0.08, 0.70)
+	_exit_warning_backdrop.gui_input.connect(func(event: InputEvent):
+		if (event is InputEventMouseButton and event.pressed) or (event is InputEventScreenTouch and event.pressed):
+			_dismiss_exit_warning()
+	)
+	_exit_warning_layer.add_child(_exit_warning_backdrop)
+	
+	_exit_warning_panel = PanelContainer.new()
+	_exit_warning_panel.anchor_left = 0.20
+	_exit_warning_panel.anchor_right = 0.80
+	_exit_warning_panel.anchor_top = 0.22
+	_exit_warning_panel.anchor_bottom = 0.78
+	_exit_warning_panel.offset_left = 0; _exit_warning_panel.offset_right = 0
+	_exit_warning_panel.offset_top = 0; _exit_warning_panel.offset_bottom = 0
+	
+	var style := StyleBoxFlat.new()
+	style.bg_color = Color(0.07, 0.10, 0.16, 0.98)
+	style.border_width_left = 3; style.border_width_top = 3
+	style.border_width_right = 3; style.border_width_bottom = 3
+	style.border_color = Color(1.0, 0.72, 0.20, 0.96)
+	style.set_corner_radius_all(14)
+	style.content_margin_left = 22; style.content_margin_right = 22
+	style.content_margin_top = 18; style.content_margin_bottom = 18
+	_exit_warning_panel.add_theme_stylebox_override("panel", style)
+	_exit_warning_layer.add_child(_exit_warning_panel)
+	
+	var vbox := VBoxContainer.new()
+	vbox.add_theme_constant_override("separation", 14)
+	vbox.size_flags_vertical = Control.SIZE_EXPAND_FILL
+	_exit_warning_panel.add_child(vbox)
+	
+	var title := Label.new()
+	title.text = "⚠️ QUIT GAME?"
+	title.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	title.add_theme_font_size_override("font_size", 22)
+	title.add_theme_color_override("font_color", Color(1.0, 0.82, 0.30))
+	vbox.add_child(title)
+	
+	var desc := Label.new()
+	desc.text = "Press BACK again to quit the game, or tap an option below:"
+	desc.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	desc.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+	desc.add_theme_font_size_override("font_size", 16)
+	desc.add_theme_color_override("font_color", Color(0.92, 0.94, 0.96))
+	vbox.add_child(desc)
+	
+	_exit_timer_label = Label.new()
+	_exit_timer_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	_exit_timer_label.add_theme_font_size_override("font_size", 13)
+	_exit_timer_label.add_theme_color_override("font_color", Color(0.70, 0.80, 0.90))
+	vbox.add_child(_exit_timer_label)
+	
+	var spacer := Control.new()
+	spacer.size_flags_vertical = Control.SIZE_EXPAND_FILL
+	vbox.add_child(spacer)
+	
+	var hbox := HBoxContainer.new()
+	hbox.add_theme_constant_override("separation", 24)
+	hbox.alignment = BoxContainer.ALIGNMENT_CENTER
+	vbox.add_child(hbox)
+	
+	var resume_btn := Button.new()
+	resume_btn.text = "▶ RESUME GAME"
+	resume_btn.custom_minimum_size = Vector2(170, 52)
+	resume_btn.add_theme_font_size_override("font_size", 16)
+	var r_style := StyleBoxFlat.new()
+	r_style.bg_color = Color(0.12, 0.40, 0.28, 0.96)
+	r_style.border_color = Color(0.25, 0.80, 0.55, 0.95)
+	r_style.set_border_width_all(2)
+	r_style.set_corner_radius_all(10)
+	resume_btn.add_theme_stylebox_override("normal", r_style)
+	resume_btn.pressed.connect(_dismiss_exit_warning)
+	hbox.add_child(resume_btn)
+	
+	var exit_btn := Button.new()
+	exit_btn.text = "✕ EXIT GAME"
+	exit_btn.custom_minimum_size = Vector2(170, 52)
+	exit_btn.add_theme_font_size_override("font_size", 16)
+	var e_style := StyleBoxFlat.new()
+	e_style.bg_color = Color(0.50, 0.16, 0.20, 0.96)
+	e_style.border_color = Color(0.90, 0.32, 0.38, 0.95)
+	e_style.set_border_width_all(2)
+	e_style.set_corner_radius_all(10)
+	exit_btn.add_theme_stylebox_override("normal", e_style)
+	exit_btn.pressed.connect(func():
+		if sfx: sfx.play("ui_click", -4.0, 0.8, 0.9)
+		get_tree().quit()
+	)
+	hbox.add_child(exit_btn)
+
+func _update_exit_timer_display() -> void:
+	if _exit_timer_label:
+		_exit_timer_label.text = "Auto-dismissing in %.1fs (or tap Resume)" % max(0.0, _exit_warning_timer)
+
+func _dismiss_exit_warning() -> void:
+	_exit_warning_active = false
+	_exit_warning_timer = 0.0
+	if _exit_warning_layer:
+		_exit_warning_layer.visible = false
+	if sfx:
+		sfx.play("ui_click", -7.0, 0.9, 1.0)
+
+func _process(delta: float) -> void:
+	if _exit_warning_active:
+		_exit_warning_timer -= delta
+		_update_exit_timer_display()
+		if _exit_warning_timer <= 0.0:
+			_dismiss_exit_warning()
 
 # -------------------------------------------------------------
 # Physics Process & Movement

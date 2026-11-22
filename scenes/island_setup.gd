@@ -1,9 +1,7 @@
 extends Node3D
 
 @export var water_level: float = 0.0
-@export var beacon_rotation_speed: float = 0.55
 
-@onready var lighthouse_beacon: Node3D = get_node_or_null("LighthouseRuins/BeaconPivot")
 @onready var campfire_light: OmniLight3D = get_node_or_null("BeachAndCamp/CampfireLight")
 
 var _time: float = 0.0
@@ -14,7 +12,6 @@ func _ready() -> void:
 	_setup_prop_collisions()
 	_setup_ambience_and_atmosphere()
 	_setup_story_and_enemy()
-	_setup_lighthouse_beacon_visuals()
 
 func _spawn_lighthouse_stones() -> void:
 	var ruins := get_node_or_null("LighthouseRuins")
@@ -53,8 +50,6 @@ func _spawn_lighthouse_stones() -> void:
 
 func _process(delta: float) -> void:
 	_time += delta
-	if lighthouse_beacon:
-		lighthouse_beacon.rotate_y(beacon_rotation_speed * delta)
 	if campfire_light:
 		campfire_light.light_energy = 2.8 + 0.35 * sin(_time * 7.5) + 0.2 * cos(_time * 13.0)
 
@@ -207,75 +202,3 @@ func _on_ocean_swim_zone_body_entered(body: Node3D) -> void:
 func _on_ocean_swim_zone_body_exited(body: Node3D) -> void:
 	if body.has_method("set_swimming"):
 		body.set_swimming(false, water_level)
-
-func _setup_lighthouse_beacon_visuals() -> void:
-	var lh := get_node_or_null("LighthouseRuins/Lighthouse") as Node3D
-	var pivot := get_node_or_null("LighthouseRuins/BeaconPivot") as Node3D
-	if not pivot:
-		return
-	# Center beacon right inside the Lighthouse lantern glass room (local y ~ +14.2 above Lighthouse origin)
-	if lh:
-		pivot.position = lh.position + Vector3(0.45, 14.2, 0.75)
-
-	# 1. Bright glowing emissive Beacon Core Orb (always visible from anywhere on island)
-	var core := MeshInstance3D.new()
-	core.name = "BeaconCoreOrb"
-	var sph := SphereMesh.new()
-	sph.radius = 0.95
-	sph.height = 1.9
-	var core_mat := StandardMaterial3D.new()
-	core_mat.albedo_color = Color(1.0, 0.95, 0.72)
-	core_mat.emission_enabled = true
-	core_mat.emission = Color(1.0, 0.88, 0.45)
-	core_mat.emission_energy_multiplier = 4.5
-	core_mat.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
-	sph.material = core_mat
-	core.mesh = sph
-	pivot.add_child(core)
-
-	# 2. Warm OmniLight3D illuminating the Lighthouse lantern chamber & roof
-	var omni := OmniLight3D.new()
-	omni.name = "BeaconGlowOmni"
-	omni.light_color = Color(1.0, 0.90, 0.55)
-	omni.light_energy = 8.0
-	omni.omni_range = 38.0
-	pivot.add_child(omni)
-
-	# 3. Two huge visible volumetric translucent rotating light beam cones (GL Compatibility safe!)
-	var beam_mat := StandardMaterial3D.new()
-	beam_mat.albedo_color = Color(1.0, 0.92, 0.55, 0.20)
-	beam_mat.emission_enabled = true
-	beam_mat.emission = Color(1.0, 0.90, 0.48)
-	beam_mat.emission_energy_multiplier = 1.8
-	beam_mat.transparency = BaseMaterial3D.TRANSPARENCY_ALPHA
-	beam_mat.blend_mode = BaseMaterial3D.BLEND_MODE_ADD
-	beam_mat.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
-	beam_mat.cull_mode = BaseMaterial3D.CULL_DISABLED
-	beam_mat.depth_draw_mode = BaseMaterial3D.DEPTH_DRAW_DISABLED
-
-	for dir_sign in [-1.0, 1.0]:
-		var beam := MeshInstance3D.new()
-		beam.name = "VolumetricBeam_A" if dir_sign > 0 else "VolumetricBeam_B"
-		var cone := CylinderMesh.new()
-		cone.top_radius = 0.45
-		cone.bottom_radius = 8.0
-		cone.height = 56.0
-		cone.radial_segments = 16
-		cone.cap_top = false
-		cone.cap_bottom = false
-		cone.material = beam_mat
-		beam.mesh = cone
-		# Point beam outward along +/-Z and angled slightly down (-8 deg) across the island & ocean
-		beam.rotation_degrees = Vector3(82.0 * dir_sign, 0.0, 0.0)
-		beam.position = Vector3(0.0, -3.8, 28.5 * dir_sign)
-		pivot.add_child(beam)
-
-	# Boost existing SpotLight3D beams so they sweep across the terrain too
-	for s_name in ["BeaconSpotA", "BeaconSpotB"]:
-		var spot := pivot.get_node_or_null(s_name) as SpotLight3D
-		if spot:
-			spot.light_energy = 28.0
-			spot.spot_range = 150.0
-			spot.spot_angle = 32.0
-			spot.spot_attenuation = 0.55
-			spot.rotation_degrees.x = -12.0

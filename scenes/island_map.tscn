@@ -344,22 +344,6 @@ transform = Transform3D(-2.6046, 0, 2.1855, 0, 3.4000, 0, -2.1855, 0, -2.6046, -
 [node name="Lighthouse" parent="LighthouseRuins" instance=ExtResource("5_lighthouse")]
 transform = Transform3D(0.9063, 0, -0.4226, 0, 1.0000, 0, 0.4226, 0, 0.9063, 30.000, 6.990, -22.000)
 
-[node name="BeaconPivot" type="Node3D" parent="LighthouseRuins"]
-transform = Transform3D(1.0000, 0, 0.0000, 0, 1.0000, 0, -0.0000, 0, 1.0000, 30.000, 22.790, -22.000)
-
-[node name="BeaconSpotA" type="SpotLight3D" parent="LighthouseRuins/BeaconPivot"]
-light_color = Color(1.0, 0.90, 0.55, 1)
-light_energy = 14.0
-spot_range = 125.0
-spot_angle = 26.0
-
-[node name="BeaconSpotB" type="SpotLight3D" parent="LighthouseRuins/BeaconPivot"]
-transform = Transform3D(-1, 0, 0, 0, 1, 0, 0, 0, -1, 0, 0, 0)
-light_color = Color(1.0, 0.90, 0.55, 1)
-light_energy = 14.0
-spot_range = 125.0
-spot_angle = 26.0
-
 [node name="CliffProp_00" parent="LighthouseRuins" instance=ExtResource("20_rock_b")]
 transform = Transform3D(-1.8469, 0, 5.0743, 0, 5.4000, 0, -5.0743, 0, -1.8469, 38.000, 4.054, -14.000)
 
